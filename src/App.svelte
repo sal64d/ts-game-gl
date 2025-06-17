@@ -17,58 +17,47 @@
     };
   }
 
-  function ease(x: number){
-    return Math.max(Math.min(1.01/(1+(Math.exp(-4*(2*x - 1)))), 1), -1)
+  function ease(x: number) {
+    return Math.max(Math.min(1.01 / (1 + Math.exp(-4 * (2 * x - 1))), 1), -1);
   }
 
   class Game {
-    user;
-    camera;
-    dx;
-    zoom = 200.0;
+    zoom = 100.0;
     gravity = -0.001;
     drag = -0.01;
     friction = -0.01;
     ground = 10.0;
-    colliders = [
-      { size: [1000, 1000] as Vec2, pos: [-500, this.ground] as Vec2 },
-      { size: [30, 10] as Vec2, pos: [30, 20] as Vec2 },
-      { size: [30, 10] as Vec2, pos: [70, 30] as Vec2 },
-      { size: [30, 10] as Vec2, pos: [120, 50] as Vec2 },
-      { size: [30, 10] as Vec2, pos: [60, 80] as Vec2 },
-      { size: [30, 10] as Vec2, pos: [20, 60] as Vec2 },
-      {
-        size: [30, 10] as Vec2,
-        pos: [110, 100] as Vec2,
-        path: {
-          from: [110, 100],
-          to: [110, 140],
-          duration: 1,
-          percent: 0.0,
-          dir: 0,
-          ease: true,
-        },
-      },
-      {
-        size: [30, 10] as Vec2,
-        pos: [160, 140] as Vec2,
-        path: {
-          from: [160, 140],
-          to: [210, 140],
-          duration: 1,
-          percent: 0.0,
-          dir: 0,
-          ease: true,
-        },
-      },
-      {
-        size: [60, 10] as Vec2,
-        pos: [240, 160] as Vec2,
-      },
-    ];
+
+    dx;
+
+    user = {
+      pos: [0, 20] as Vec2,
+      size: [10, 10] as Vec2,
+      movement: [0, 0] as Vec2,
+      velocity: [0, 0] as Vec2,
+      keyJump: false,
+      keyMove: undefined as string | undefined,
+      rest: true,
+      parent: null as null | number,
+    };
+
+    camera = {
+      pos: [0, 0] as Vec2,
+      padding: [30, 30],
+      inertia: [0.01, 0.01] as Vec2,
+    };
+
+    complete = false;
+
+    colliders = [];
 
     constructor(ctx: CanvasRenderingContext2D, width: number, height: number) {
       this.dx = { ctx, width, height };
+      this.reset();
+    }
+
+    reset() {
+      this.complete = false;
       this.user = {
         pos: [0, 20] as Vec2,
         size: [10, 10] as Vec2,
@@ -79,11 +68,54 @@
         rest: true,
         parent: null as null | number,
       };
+
       this.camera = {
         pos: [0, 0] as Vec2,
         padding: [30, 30],
         inertia: [0.01, 0.01] as Vec2,
       };
+
+      this.colliders = [
+        { size: [1000, 1000] as Vec2, pos: [-500, this.ground] as Vec2 },
+        { size: [30, 10] as Vec2, pos: [30, 20] as Vec2 },
+        { size: [30, 10] as Vec2, pos: [70, 30] as Vec2 },
+        { size: [30, 10] as Vec2, pos: [120, 50] as Vec2 },
+        { size: [30, 10] as Vec2, pos: [60, 80] as Vec2 },
+        { size: [30, 10] as Vec2, pos: [20, 60] as Vec2 },
+        {
+          size: [30, 10] as Vec2,
+          pos: [110, 100] as Vec2,
+          path: {
+            from: [110, 100],
+            to: [110, 140],
+            duration: 1.5,
+            percent: 0.0,
+            dir: 0,
+            ease: true,
+          },
+        },
+        {
+          size: [30, 10] as Vec2,
+          pos: [160, 140] as Vec2,
+          path: {
+            from: [160, 140],
+            to: [210, 140],
+            duration: 1.5,
+            percent: 0.0,
+            dir: 0,
+            ease: true,
+          },
+        },
+        {
+          size: [60, 10] as Vec2,
+          pos: [240, 160] as Vec2,
+        },
+        {
+          type: "goal",
+          size: [5, 5] as Vec2,
+          pos: [270, 170] as Vec2,
+        },
+      ];
     }
 
     scale([x, y]: Vec2) {
@@ -142,8 +174,7 @@
         let newX = this.user.pos[0] + this.user.velocity[0] * delta;
         let newY = this.user.pos[1] + this.user.velocity[1] * delta;
 
-        
-        if(!this.user.rest){
+        if (!this.user.rest) {
           this.user.parent = null;
         }
         this.user.rest = false;
@@ -151,10 +182,13 @@
         // user collided with a platform
         this.colliders.forEach((collider, index) => {
           // update collider pos
-          
+
           const colliderOldPos = collider.pos;
           this.updateCollider(collider, delta);
-          const colliderRelativePos = [collider.pos[0] - colliderOldPos[0], collider.pos[1] - colliderOldPos[1]]
+          const colliderRelativePos = [
+            collider.pos[0] - colliderOldPos[0],
+            collider.pos[1] - colliderOldPos[1],
+          ];
 
           const colliderBox = getBoundingBox(collider);
           const userBox = getBoundingBox({
@@ -162,7 +196,7 @@
             size: this.user.size,
           });
 
-          if(index === this.user.parent){
+          if (index === this.user.parent) {
             newX += colliderRelativePos[0];
             newY += colliderRelativePos[1];
             this.user.rest = true;
@@ -174,6 +208,10 @@
             userBox.left < colliderBox.right &&
             userBox.right > colliderBox.left
           ) {
+            if (collider.type === "goal") {
+              this.complete = true;
+            }
+
             // collided
             if (
               this.user.velocity[1] < 0 &&
@@ -226,7 +264,7 @@
         }
 
         this.updateCamera(delta);
-        
+
         this.render();
 
         if (this.user.keyMove) {
@@ -239,7 +277,7 @@
       window.requestAnimationFrame(advanceFrame);
     }
 
-    updateCollider(collider: typeof this.colliders[number], delta: number){
+    updateCollider(collider: (typeof this.colliders)[number], delta: number) {
       const path = collider.path;
 
       if (path) {
@@ -257,41 +295,36 @@
 
         const t = path.ease ? ease(path.percent) : path.percent;
 
-        const pX =
-          path.from[0] + (path.to[0] - path.from[0]) * t;
-        const pY =
-          path.from[1] + (path.to[1] - path.from[1]) * t;
+        const pX = path.from[0] + (path.to[0] - path.from[0]) * t;
+        const pY = path.from[1] + (path.to[1] - path.from[1]) * t;
 
         collider.pos = [pX, pY];
       }
     }
 
-    updateCamera(delta: number){
+    updateCamera(delta: number) {
       const rightScroll =
-          this.camera.pos[0] + this.camera.padding[0] - this.user.pos[0];
-        const leftScroll =
-          this.user.pos[0] -
-          (100 - this.camera.padding[0] + this.camera.pos[0]);
+        this.camera.pos[0] + this.camera.padding[0] - this.user.pos[0];
+      const leftScroll =
+        this.user.pos[0] - (100 - this.camera.padding[0] + this.camera.pos[0]);
 
-        const topScroll =
-          this.user.pos[1] -
-          (100 - this.camera.padding[1] + this.camera.pos[1]);
-        const bottomScroll =
-          this.camera.pos[1] + (60 - this.camera.padding[1]) - this.user.pos[1];
+      const topScroll =
+        this.user.pos[1] - (100 - this.camera.padding[1] + this.camera.pos[1]);
+      const bottomScroll =
+        this.camera.pos[1] + (60 - this.camera.padding[1]) - this.user.pos[1];
 
-        // camera
-        if (rightScroll > 0) {
-          this.camera.pos[0] -= rightScroll * this.camera.inertia[0] * delta;
-        } else if (leftScroll > 0) {
-          this.camera.pos[0] += leftScroll * this.camera.inertia[0] * delta;
-        }
+      // camera
+      if (rightScroll > 0) {
+        this.camera.pos[0] -= rightScroll * this.camera.inertia[0] * delta;
+      } else if (leftScroll > 0) {
+        this.camera.pos[0] += leftScroll * this.camera.inertia[0] * delta;
+      }
 
-        if (topScroll > 0) {
-          this.camera.pos[1] += topScroll * this.camera.inertia[1] * delta;
-        } else if (bottomScroll > 0) {
-          this.camera.pos[1] -= bottomScroll * this.camera.inertia[1] * delta;
-        }
-
+      if (topScroll > 0) {
+        this.camera.pos[1] += topScroll * this.camera.inertia[1] * delta;
+      } else if (bottomScroll > 0) {
+        this.camera.pos[1] -= bottomScroll * this.camera.inertia[1] * delta;
+      }
     }
 
     render() {
@@ -303,19 +336,35 @@
 
       this.dx.ctx.clearRect(0, 0, this.dx.width, this.dx.height);
 
+      if (this.complete) {
+        this.dx.ctx.fillStyle = "#ee5";
+        this.dx.ctx.scale(4, 4);
+        this.dx.ctx.fillText("You win!", ...this.scale([17, 12]));
+        this.dx.ctx.scale(1 / 4, 1 / 4);
+
+        this.dx.ctx.scale(2, 2);
+        this.dx.ctx.fillText("Press space to restart", ...this.scale([32, 28]));
+        this.dx.ctx.scale(1 / 2, 1 / 2);
+        return;
+      }
+
       // user
-      if(this.user.parent !== null){
+      if (this.user.parent !== null) {
         this.dx.ctx.fillStyle = "#f00";
       } else {
         this.dx.ctx.fillStyle = "#555";
-        
       }
       this.dx.ctx.fillRect(...pos, ...size);
 
       // colliders
-      this.dx.ctx.fillStyle = "#3a5";
 
       this.colliders.forEach((collider) => {
+        if (collider.type === "goal") {
+          this.dx.ctx.fillStyle = "#ff0";
+        } else {
+          this.dx.ctx.fillStyle = "#3a5";
+        }
+
         this.dx.ctx.fillRect(
           ...this.scale(this.transformPos(collider.pos)),
           ...this.scale(collider.size),
@@ -339,6 +388,9 @@
         case "ArrowRight":
           this.user.movement[0] = +0.001;
           this.user.keyMove = "ArrowRight";
+          break;
+        case " ":
+          this.reset();
           break;
       }
     }
