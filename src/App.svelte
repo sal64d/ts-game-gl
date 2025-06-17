@@ -25,7 +25,7 @@
     user;
     camera;
     dx;
-    zoom = 100.0;
+    zoom = 200.0;
     gravity = -0.001;
     drag = -0.01;
     friction = -0.01;
@@ -39,10 +39,10 @@
       { size: [30, 10] as Vec2, pos: [20, 60] as Vec2 },
       {
         size: [30, 10] as Vec2,
-        pos: [-40, 40] as Vec2,
+        pos: [110, 100] as Vec2,
         path: {
-          from: [-40, 40],
-          to: [-40, 80],
+          from: [110, 100],
+          to: [110, 140],
           duration: 1,
           percent: 0.0,
           dir: 0,
@@ -51,28 +51,33 @@
       },
       {
         size: [30, 10] as Vec2,
-        pos: [-80, 80] as Vec2,
+        pos: [160, 140] as Vec2,
         path: {
-          from: [-80, 80],
-          to: [-140, 80],
+          from: [160, 140],
+          to: [210, 140],
           duration: 1,
           percent: 0.0,
           dir: 0,
           ease: true,
         },
       },
+      {
+        size: [60, 10] as Vec2,
+        pos: [240, 160] as Vec2,
+      },
     ];
 
     constructor(ctx: CanvasRenderingContext2D, width: number, height: number) {
       this.dx = { ctx, width, height };
       this.user = {
-        pos: [0.0, this.zoom] as Vec2,
+        pos: [0, 20] as Vec2,
         size: [10, 10] as Vec2,
         movement: [0, 0] as Vec2,
         velocity: [0, 0] as Vec2,
         keyJump: false,
         keyMove: undefined as string | undefined,
         rest: true,
+        parent: null as null | number,
       };
       this.camera = {
         pos: [0, 0] as Vec2,
@@ -137,18 +142,31 @@
         let newX = this.user.pos[0] + this.user.velocity[0] * delta;
         let newY = this.user.pos[1] + this.user.velocity[1] * delta;
 
+        
+        if(!this.user.rest){
+          this.user.parent = null;
+        }
         this.user.rest = false;
 
         // user collided with a platform
-        this.colliders.forEach((collider) => {
+        this.colliders.forEach((collider, index) => {
           // update collider pos
-          this.updateCollider(collider, delta)
+          
+          const colliderOldPos = collider.pos;
+          this.updateCollider(collider, delta);
+          const colliderRelativePos = [collider.pos[0] - colliderOldPos[0], collider.pos[1] - colliderOldPos[1]]
 
           const colliderBox = getBoundingBox(collider);
           const userBox = getBoundingBox({
             pos: [newX, newY] as Vec2,
             size: this.user.size,
           });
+
+          if(index === this.user.parent){
+            newX += colliderRelativePos[0];
+            newY += colliderRelativePos[1];
+            this.user.rest = true;
+          }
 
           if (
             userBox.bottom < colliderBox.top &&
@@ -167,6 +185,7 @@
               this.user.movement[1] = 0;
               newY = colliderBox.top + this.user.size[1];
               this.user.rest = true;
+              this.user.parent = index;
             }
 
             if (
@@ -285,7 +304,12 @@
       this.dx.ctx.clearRect(0, 0, this.dx.width, this.dx.height);
 
       // user
-      this.dx.ctx.fillStyle = "#555";
+      if(this.user.parent !== null){
+        this.dx.ctx.fillStyle = "#f00";
+      } else {
+        this.dx.ctx.fillStyle = "#555";
+        
+      }
       this.dx.ctx.fillRect(...pos, ...size);
 
       // colliders
@@ -353,7 +377,7 @@
 
 <canvas
   bind:this={root}
-  width="400px"
-  height="280px"
+  width="800px"
+  height="480px"
   style="border: solid 1px white; background: #000;"
 ></canvas>
