@@ -11,7 +11,7 @@ import { ease, getBoundingBox } from "./utils";
    */
 export class GameEngine {
     // Consts
-    zoom = 200.0;
+    zoom = 100.0;
     gravity = -0.001;
     drag = -0.01;
     friction = -0.01;
@@ -29,15 +29,15 @@ export class GameEngine {
     constructor(ctx: CanvasRenderingContext2D, width: number, height: number, game: Game) {
         this.dx = { ctx, width, height };
         this.game = game;
-        this.state = GameEngine.reset(game, 1)
+        this.state = GameEngine.reset(game)
     }
 
-    static reset(game: Game, level_index: number = 0): GameState {
+    static reset(game: Game, level_index: number = 0, total_score: number = 0): GameState {
         const level = game.levels[level_index];
 
         return {
             completed: false,
-            total_score: 0,
+            total_score: total_score,
             current_level_index: level_index,
             current_level_state: {
                 completed: false,
@@ -177,8 +177,10 @@ export class GameEngine {
                     }
 
                     if (collider.type === "coin") {
-                        collider_state.coin_taken = true;
-                        user_state.coins++;
+                        if (!collider_state.coin_taken) {
+                            collider_state.coin_taken = true;
+                            user_state.coins++;
+                        }
                         return;
                     }
 
@@ -328,6 +330,9 @@ export class GameEngine {
         this.dx.ctx.clearRect(0, 0, this.dx.width, this.dx.height);
 
         if (this.state.current_level_state.completed) {
+            const level_score = this.state.current_level_state.user_state.coins;
+            const total_score = level_score + this.state.total_score;
+
             if (this.state.current_level_index < this.game.levels.length - 1) {
                 this.dx.ctx.fillStyle = "#ee5";
                 this.dx.ctx.scale(4, 4);
@@ -336,14 +341,22 @@ export class GameEngine {
                 this.dx.ctx.scale(2, 2);
                 this.dx.ctx.fillText("Press space to start next level.", ...this.scale([29.5, 28]));
                 this.dx.ctx.scale(1 / 2, 1 / 2);
+
+                this.dx.ctx.scale(2, 2);
+                this.dx.ctx.fillText(`Score: ${level_score} / 3`, ...this.scale([5, 45]));
+                this.dx.ctx.scale(1 / 2, 1 / 2);
                 return;
-            } else { 
+            } else {
                 this.dx.ctx.fillStyle = "#ee5";
                 this.dx.ctx.scale(4, 4);
                 this.dx.ctx.fillText("You win!", ...this.scale([17, 12]));
                 this.dx.ctx.scale(1 / 4, 1 / 4);
                 this.dx.ctx.scale(2, 2);
                 this.dx.ctx.fillText("Press space to restart.", ...this.scale([32, 28]));
+                this.dx.ctx.scale(1 / 2, 1 / 2);
+
+                this.dx.ctx.scale(2, 2);
+                this.dx.ctx.fillText(`Score: ${level_score} / 3`, ...this.scale([5, 45]));
                 this.dx.ctx.scale(1 / 2, 1 / 2);
                 return
             }
@@ -366,8 +379,8 @@ export class GameEngine {
                 this.dx.ctx.fillStyle = "#ff0";
 
                 const flag = this.scale(this.transformPos(collider_state.pos))
-                const flagSize = this.scale([8,5]);
-               
+                const flagSize = this.scale([8, 5]);
+
                 // flag
                 this.dx.ctx.fillRect(
                     flag[0], flag[1],
@@ -376,12 +389,12 @@ export class GameEngine {
 
                 // pole
                 this.dx.ctx.fillRect(
-                    flag[0]-1, flag[1],
-                    ...this.scale([1,15])
+                    flag[0] - 1, flag[1],
+                    ...this.scale([1, 15])
                 );
-            } 
+            }
             else if (collider.type === "coin") {
-                if(collider_state.coin_taken){
+                if (collider_state.coin_taken) {
                     return;
                 }
 
@@ -390,8 +403,8 @@ export class GameEngine {
                     ...this.scale(this.transformPos(collider_state.pos)),
                     ...this.scale(collider.size),
                 );
-                
-            } else if (collider.type === "platform"){
+
+            } else if (collider.type === "platform") {
                 this.dx.ctx.fillStyle = "#3a5";
 
                 this.dx.ctx.fillRect(
@@ -433,10 +446,10 @@ export class GameEngine {
             case " ":
                 const current_level = this.state.current_level_index;
 
-                if(this.state.current_level_state.completed){
-                    if(current_level < this.game.levels.length - 1){
+                if (this.state.current_level_state.completed) {
+                    if (current_level < this.game.levels.length - 1) {
                         // next level
-                        this.state = GameEngine.reset(this.game, current_level+1);
+                        this.state = GameEngine.reset(this.game, current_level + 1);
                     } else {
                         // restart game
                         this.state = GameEngine.reset(this.game);
