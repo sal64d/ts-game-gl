@@ -55,7 +55,7 @@ export type CameraState = {
 
 // Collider
 export type Collider = {
-    type: 'platform' | 'coin' | 'goal'
+    type: 'platform' | 'coin' | 'goal' | 'lava'
     size: Vec2;
     start_pos: Vec2;
     path?: PathInterpolation;

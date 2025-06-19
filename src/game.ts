@@ -89,6 +89,21 @@ export const game: Game = {
                     start_pos: [270, 170],
                 },
             ]
+        },
+        // Level 2
+        {
+            user: defaultUser(),
+            camera: defaultCamera(),
+            colliders: [
+                {
+                    type: 'platform',
+                    size: [1000, 1000],
+                    start_pos: [-500, 10.0]
+                },
+                
+            ]
         }
     ]
+
+
 }

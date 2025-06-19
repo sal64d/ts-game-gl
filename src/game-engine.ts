@@ -311,15 +311,25 @@ export class GameEngine {
         this.dx.ctx.clearRect(0, 0, this.dx.width, this.dx.height);
 
         if (this.state.current_level_state.completed) {
-            this.dx.ctx.fillStyle = "#ee5";
-            this.dx.ctx.scale(4, 4);
-            this.dx.ctx.fillText("You win!", ...this.scale([17, 12]));
-            this.dx.ctx.scale(1 / 4, 1 / 4);
-
-            this.dx.ctx.scale(2, 2);
-            this.dx.ctx.fillText("Press space to restart", ...this.scale([32, 28]));
-            this.dx.ctx.scale(1 / 2, 1 / 2);
-            return;
+            if (this.state.current_level < this.game.levels.length - 1) {
+                this.dx.ctx.fillStyle = "#ee5";
+                this.dx.ctx.scale(4, 4);
+                this.dx.ctx.fillText("Level completed!", ...this.scale([14, 12]));
+                this.dx.ctx.scale(1 / 4, 1 / 4);
+                this.dx.ctx.scale(2, 2);
+                this.dx.ctx.fillText("Press space to start next level.", ...this.scale([29.5, 28]));
+                this.dx.ctx.scale(1 / 2, 1 / 2);
+                return;
+            } else { 
+                this.dx.ctx.fillStyle = "#ee5";
+                this.dx.ctx.scale(4, 4);
+                this.dx.ctx.fillText("You win!", ...this.scale([17, 12]));
+                this.dx.ctx.scale(1 / 4, 1 / 4);
+                this.dx.ctx.scale(2, 2);
+                this.dx.ctx.fillText("Press space to restart.", ...this.scale([32, 28]));
+                this.dx.ctx.scale(1 / 2, 1 / 2);
+                return
+            }
         }
 
         // user
@@ -369,7 +379,20 @@ export class GameEngine {
                 user_state.keyMove = "ArrowRight";
                 break;
             case " ":
-                this.state = GameEngine.reset(this.game, this.state.current_level);
+                const current_level = this.state.current_level;
+
+                if(this.state.current_level_state.completed){
+                    if(current_level < this.game.levels.length - 1){
+                        // next level
+                        this.state = GameEngine.reset(this.game, current_level+1);
+                    } else {
+                        // restart game
+                        this.state = GameEngine.reset(this.game);
+                    }
+                } else {
+                    // restart level
+                    this.state = GameEngine.reset(this.game, current_level);
+                }
                 break;
         }
     }
