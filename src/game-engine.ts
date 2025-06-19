@@ -11,7 +11,7 @@ import { ease, getBoundingBox } from "./utils";
    */
 export class GameEngine {
     // Consts
-    zoom = 100.0;
+    zoom = 200.0;
     gravity = -0.001;
     drag = -0.01;
     friction = -0.01;
@@ -29,7 +29,7 @@ export class GameEngine {
     constructor(ctx: CanvasRenderingContext2D, width: number, height: number, game: Game) {
         this.dx = { ctx, width, height };
         this.game = game;
-        this.state = GameEngine.reset(game)
+        this.state = GameEngine.reset(game, 1)
     }
 
     static reset(game: Game, level_index: number = 0): GameState {
@@ -37,7 +37,8 @@ export class GameEngine {
 
         return {
             completed: false,
-            current_level: 0,
+            total_score: 0,
+            current_level_index: level_index,
             current_level_state: {
                 completed: false,
                 camera_state: {
@@ -50,14 +51,16 @@ export class GameEngine {
                     keyJump: false,
                     keyMove: undefined,
                     rest: true,
-                    parent: null
+                    parent: null,
+                    coins: 0,
                 },
                 colliders_state: level.colliders.map((collider): ColliderState => ({
                     pos: [...collider.start_pos],
                     path: collider.path && {
                         percent: 0,
                         direction: 'forward',
-                    }
+                    },
+                    coin_taken: collider.type === 'coin' ? false : undefined
                 })),
             }
         }
@@ -77,7 +80,7 @@ export class GameEngine {
     }
 
     get current_level() {
-        return this.game.levels[this.state.current_level]
+        return this.game.levels[this.state.current_level_index]
     }
 
     play() {
@@ -90,47 +93,47 @@ export class GameEngine {
             const delta = time - prevTime;
             prevTime = time;
 
-            const user = this.state.current_level_state.user_state;
+            const user_state = this.state.current_level_state.user_state;
             const user_size = this.current_level.user.size
 
             // movement x
-            if (Math.abs(user.movement[0]) > 0.0) {
-                user.velocity[0] += user.movement[0] * delta;
-                user.movement[0] += user.movement[0] * this.drag * delta;
+            if (Math.abs(user_state.movement[0]) > 0.0) {
+                user_state.velocity[0] += user_state.movement[0] * delta;
+                user_state.movement[0] += user_state.movement[0] * this.drag * delta;
             }
 
             // movement y
-            if (Math.abs(user.movement[1]) > 0.0) {
-                user.velocity[1] += user.movement[1] * delta;
-                user.movement[1] += user.movement[1] * this.drag * delta;
+            if (Math.abs(user_state.movement[1]) > 0.0) {
+                user_state.velocity[1] += user_state.movement[1] * delta;
+                user_state.movement[1] += user_state.movement[1] * this.drag * delta;
             }
 
             // gravity reduces velocity y
-            user.velocity[1] += this.gravity * delta;
+            user_state.velocity[1] += this.gravity * delta;
 
             // Friction reduces velocity x
-            if (Math.abs(user.velocity[0]) > 0.0) {
-                user.velocity[0] +=
-                    user.velocity[0] * this.friction * delta;
+            if (Math.abs(user_state.velocity[0]) > 0.0) {
+                user_state.velocity[0] +=
+                    user_state.velocity[0] * this.friction * delta;
             }
 
-            if (Math.abs(user.velocity[0]) < 0.0001) {
-                user.velocity[0] = 0;
+            if (Math.abs(user_state.velocity[0]) < 0.0001) {
+                user_state.velocity[0] = 0;
             }
-            if (Math.abs(user.velocity[1]) < 0.0001) {
-                user.velocity[1] = 0;
+            if (Math.abs(user_state.velocity[1]) < 0.0001) {
+                user_state.velocity[1] = 0;
             }
 
             // move platforms
 
             // update pos
-            let newX = user.pos[0] + user.velocity[0] * delta;
-            let newY = user.pos[1] + user.velocity[1] * delta;
+            let newX = user_state.pos[0] + user_state.velocity[0] * delta;
+            let newY = user_state.pos[1] + user_state.velocity[1] * delta;
 
-            if (!user.rest) {
-                user.parent = null;
+            if (!user_state.rest) {
+                user_state.parent = null;
             }
-            user.rest = false;
+            user_state.rest = false;
 
             // user collided with a platform
             this.state.current_level_state.colliders_state.forEach((collider_state, index) => {
@@ -156,10 +159,10 @@ export class GameEngine {
                     size: user_size,
                 });
 
-                if (index === user.parent) {
+                if (index === user_state.parent) {
                     newX += colliderRelativePos[0];
                     newY += colliderRelativePos[1];
-                    user.rest = true;
+                    user_state.rest = true;
                 }
 
                 if (
@@ -170,40 +173,54 @@ export class GameEngine {
                 ) {
                     if (collider.type === "goal") {
                         this.state.current_level_state.completed = true;
+                        return;
+                    }
+
+                    if (collider.type === "coin") {
+                        collider_state.coin_taken = true;
+                        user_state.coins++;
+                        return;
+                    }
+
+                    if (collider.type === "lava") {
+                        setTimeout(() => {
+                            this.state = GameEngine.reset(this.game, this.state.current_level_index);
+                        }, 0)
+                        return;
                     }
 
                     // collided
                     if (
-                        user.velocity[1] < 0 &&
+                        user_state.velocity[1] < 0 &&
                         (userBox.right > colliderBox.left ||
                             userBox.left < colliderBox.right) &&
                         userBox.top >= colliderBox.top
                     ) {
-                        user.velocity[1] = 0;
-                        user.movement[1] = 0;
+                        user_state.velocity[1] = 0;
+                        user_state.movement[1] = 0;
                         newY = colliderBox.top + user_size[1];
-                        user.rest = true;
-                        user.parent = index;
+                        user_state.rest = true;
+                        user_state.parent = index;
                     }
 
                     if (
-                        user.velocity[1] > 0 &&
+                        user_state.velocity[1] > 0 &&
                         (userBox.right > colliderBox.left ||
                             userBox.left < colliderBox.right) &&
                         userBox.bottom <= colliderBox.bottom
                     ) {
-                        user.velocity[1] = 0;
-                        user.movement[1] = 0;
+                        user_state.velocity[1] = 0;
+                        user_state.movement[1] = 0;
                         newY = colliderBox.bottom;
-                        user.rest = true;
+                        user_state.rest = true;
                     } else if (
-                        user.velocity[0] &&
+                        user_state.velocity[0] &&
                         userBox.top <= colliderBox.top &&
                         (userBox.left < colliderBox.left ||
                             userBox.right > colliderBox.right)
                     ) {
-                        user.velocity[0] = 0;
-                        user.movement[0] = 0;
+                        user_state.velocity[0] = 0;
+                        user_state.movement[0] = 0;
                         if (userBox.left < colliderBox.left) {
                             newX = colliderBox.left - user_size[0];
                         } else {
@@ -213,22 +230,22 @@ export class GameEngine {
                 }
             });
 
-            user.pos = [newX, newY] as Vec2;
+            user_state.pos = [newX, newY] as Vec2;
 
             // moment dead-zone
-            if (Math.abs(user.movement[0]) < 0.001) {
-                user.movement[0] = 0;
+            if (Math.abs(user_state.movement[0]) < 0.001) {
+                user_state.movement[0] = 0;
             }
-            if (Math.abs(user.movement[1]) < 0.001) {
-                user.movement[1] = 0;
+            if (Math.abs(user_state.movement[1]) < 0.001) {
+                user_state.movement[1] = 0;
             }
 
             this.updateCamera(delta);
 
             this.render();
 
-            if (user.keyMove) {
-                this.keyDown(user.keyMove);
+            if (user_state.keyMove) {
+                this.keyDown(user_state.keyMove);
             }
 
             window.requestAnimationFrame(advanceFrame);
@@ -311,7 +328,7 @@ export class GameEngine {
         this.dx.ctx.clearRect(0, 0, this.dx.width, this.dx.height);
 
         if (this.state.current_level_state.completed) {
-            if (this.state.current_level < this.game.levels.length - 1) {
+            if (this.state.current_level_index < this.game.levels.length - 1) {
                 this.dx.ctx.fillStyle = "#ee5";
                 this.dx.ctx.scale(4, 4);
                 this.dx.ctx.fillText("Level completed!", ...this.scale([14, 12]));
@@ -334,7 +351,7 @@ export class GameEngine {
 
         // user
         if (user_state.parent !== null) {
-            this.dx.ctx.fillStyle = "#f00";
+            this.dx.ctx.fillStyle = "#aaa";
         } else {
             this.dx.ctx.fillStyle = "#555";
         }
@@ -347,14 +364,49 @@ export class GameEngine {
 
             if (collider.type === "goal") {
                 this.dx.ctx.fillStyle = "#ff0";
-            } else {
-                this.dx.ctx.fillStyle = "#3a5";
-            }
 
-            this.dx.ctx.fillRect(
-                ...this.scale(this.transformPos(collider_state.pos)),
-                ...this.scale(collider.size),
-            );
+                const flag = this.scale(this.transformPos(collider_state.pos))
+                const flagSize = this.scale([8,5]);
+               
+                // flag
+                this.dx.ctx.fillRect(
+                    flag[0], flag[1],
+                    flagSize[0], flagSize[1],
+                );
+
+                // pole
+                this.dx.ctx.fillRect(
+                    flag[0]-1, flag[1],
+                    ...this.scale([1,15])
+                );
+            } 
+            else if (collider.type === "coin") {
+                if(collider_state.coin_taken){
+                    return;
+                }
+
+                this.dx.ctx.fillStyle = "#ff0";
+                this.dx.ctx.fillRect(
+                    ...this.scale(this.transformPos(collider_state.pos)),
+                    ...this.scale(collider.size),
+                );
+                
+            } else if (collider.type === "platform"){
+                this.dx.ctx.fillStyle = "#3a5";
+
+                this.dx.ctx.fillRect(
+                    ...this.scale(this.transformPos(collider_state.pos)),
+                    ...this.scale(collider.size),
+                );
+
+            } else if (collider.type === "lava") {
+                this.dx.ctx.fillStyle = "#f00";
+
+                this.dx.ctx.fillRect(
+                    ...this.scale(this.transformPos(collider_state.pos)),
+                    ...this.scale(collider.size),
+                );
+            }
         });
     }
 
@@ -379,7 +431,7 @@ export class GameEngine {
                 user_state.keyMove = "ArrowRight";
                 break;
             case " ":
-                const current_level = this.state.current_level;
+                const current_level = this.state.current_level_index;
 
                 if(this.state.current_level_state.completed){
                     if(current_level < this.game.levels.length - 1){

@@ -7,9 +7,10 @@ export type Game = {
 }
 
 export type GameState = {
-    current_level: number;
+    current_level_index: number;
     completed: boolean;
     current_level_state: LevelState
+    total_score: number;
 }
 
 // Level
@@ -40,6 +41,7 @@ export type UserState = {
     keyMove: string | undefined,
     rest: boolean,
     parent: null | number,
+    coins: number,
 };
 
 // Camera
@@ -63,6 +65,7 @@ export type Collider = {
 
 export type ColliderState = {
     pos: Vec2;
+    coin_taken?: boolean;
     path?: PathInterpolationState;
 };
 
